@@ -1,0 +1,24 @@
+h1 Time spent coding for #{uid}
+
+h2 Want this?  
+  a(href="http://github.com/jhuttner/how-much-do-i-code") Instructions here
+
+p(style="line-height:30px; width: 100px; background-color: blue; color:white; text-align:center") Coding
+p(style="line-height:30px; width: 100px; background-color: #d8d8d8; text-align:center") Not Coding
+hr
+
+each day, d in result
+  - if (d == 0)
+    p= 'Today, ' + day.total + ' minutes'
+  - else if (d == 1)
+    p= 'Yesterday, ' + day.total + ' minutes'
+  - else 
+    p= d + ' days ago, ' + day.total + ' minutes'
+
+  each hour in hours
+    each minute in minutes
+      - if (day[hour]['minutes'][minute])
+        span(style="display: inline-block; height:20px; width: 1px; background-color: blue;")
+      - else
+        span(style="display: inline-block; height:20px; width: 1px; background-color: #d8d8d8;")
+
