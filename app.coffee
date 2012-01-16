@@ -17,16 +17,16 @@ user_vars.max_lookback_mins = 10
 # Utility functions
 # ----------------------------------------------------------------------------
 
-makeKey = (foo...) ->                               
-  args = Array.prototype.slice.call arguments       
-  args.join ':'                                     
-                                                          
+makeKey = (foo...) ->
+  args = Array.prototype.slice.call arguments
+  args.join ':'
+
 getMinute = (timestamp) ->
   # returns int between 0->59
   seconds_past_hour =  timestamp % 3600
   which_minute = seconds_past_hour / 60
   Math.floor which_minute
- 
+
 getClosestMinute = (timestamp) ->
   # returns the timestamp of the most recent minute
   60 * Math.floor (timestamp / 60)
@@ -46,19 +46,19 @@ markMinuteAsWorked = (uid, timestamp, include_lookback, cb) ->
 
   # Mark the minute property of the corresponding hour as worked
   #
-  # If include_lookback is true, older minutes will also be marked 
-  # as true to compensate for the user not hitting the save button 
+  # If include_lookback is true, older minutes will also be marked
+  # as true to compensate for the user not hitting the save button
   # every single minute.
 
   hour = getClosestHour timestamp
-  minute = getMinute timestamp 
+  minute = getMinute timestamp
 
   key = makeKey 'uid', uid, 'hour', hour
   #console.log 'setting key', key, 'and minute', minute
 
   client.hset key, minute, 1, (err, result) ->
     if err then return cb err
-  
+
     if not include_lookback
       return cb null
     else
@@ -69,7 +69,7 @@ markMinuteAsWorked = (uid, timestamp, include_lookback, cb) ->
         minute = getMinute new_timestamp
         key = makeKey 'uid', uid, 'hour', hour
 
-        # If any minute in the previous ten was worked on, then 
+        # If any minute in the previous ten was worked on, then
         # mark the minutes between now and then as worked on also.
 
         #console.log 'checking if exists', key, minute
@@ -153,7 +153,7 @@ app.get '/track/:uid', (req, res) ->
 
   for day in days
     for hour in hours
-      fn = (which_day, which_hour) -> 
+      fn = (which_day, which_hour) ->
         timestamp = now - (one_hour * which_hour) - (one_day * which_day)
         getMinutesWorked uid, timestamp, (err, result, total) ->
           if err then return res.send err
@@ -161,7 +161,7 @@ app.get '/track/:uid', (req, res) ->
           output[which_day][which_hour].minutes = result
           output[which_day].total += total
           async_cnt -= 1
-          if async_cnt is 0 
+          if async_cnt is 0
             vars.result = output
             res.render 'index.jade', vars
             return
@@ -171,7 +171,7 @@ app.get '/save-event/:uid/:timestamp', (req, res) ->
   uid = req.params.uid
   timestamp = req.params.timestamp
 
-  markMinuteAsWorked uid, timestamp, true, (err, result) -> 
+  markMinuteAsWorked uid, timestamp, true, (err, result) ->
     if err then return cb err
     res.send 'ok'
 

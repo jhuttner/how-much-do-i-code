@@ -1,6 +1,6 @@
-h1 Time spent coding for #{uid}
+h1 Time spent coding by #{uid}
 
-h2 Want this?  
+h2 Want this?
   a(href="http://github.com/jhuttner/how-much-do-i-code") Instructions here
 
 p(style="line-height:30px; width: 100px; background-color: blue; color:white; text-align:center") Coding
@@ -12,7 +12,7 @@ each day, d in result
     p= 'Today, ' + day.total + ' minutes'
   - else if (d == 1)
     p= 'Yesterday, ' + day.total + ' minutes'
-  - else 
+  - else
     p= d + ' days ago, ' + day.total + ' minutes'
 
   each hour in hours
@@ -21,4 +21,3 @@ each day, d in result
         span(style="display: inline-block; height:20px; width: 1px; background-color: blue;")
       - else
         span(style="display: inline-block; height:20px; width: 1px; background-color: #d8d8d8;")
-
