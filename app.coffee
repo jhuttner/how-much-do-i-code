@@ -128,7 +128,7 @@ getDayName = (timestamp) ->
 app.get '/track/:uid', (req, res) ->
   uid = req.params.uid
   now = (new Date()).getTime() / 1000
-  days = [0..1]
+  days = [0..10]
   hours = [0..23]
   one_hour = 3600
   one_day = one_hour * 24
