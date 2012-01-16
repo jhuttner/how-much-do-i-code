@@ -5,6 +5,7 @@ h2 Want this?
 
 p(style="line-height:30px; width: 100px; background-color: blue; color:white; text-align:center") Coding
 p(style="line-height:30px; width: 100px; background-color: #d8d8d8; text-align:center") Not Coding
+p | midnight ------- 23:59 UTC |
 hr
 
 each day, d in result
@@ -18,6 +19,7 @@ each day, d in result
   each hour in hours
     each minute in minutes
       - if (day[hour]['minutes'][minute])
+        //span Minute is #{minute} and hour is #{hour}
         span(style="display: inline-block; height:20px; width: 1px; background-color: blue;")
       - else
         span(style="display: inline-block; height:20px; width: 1px; background-color: #d8d8d8;")

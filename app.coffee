@@ -37,7 +37,7 @@ getClosestHour = (timestamp) ->
 
 getClosestDay = (timestamp) ->
   # returns the timestamp of the most recent day
-  86400 * Math.floor(timestamp / 86400)
+  86400 * (Math.floor(timestamp / 86400))
 
 # Heavy lifters
 # ----------------------------------------------------------------------------
@@ -86,8 +86,8 @@ markMinuteAsWorked = (uid, timestamp, include_lookback, cb) ->
         fn i, minute
 
 getMinutesWorked = (uid, timestamp, cb) ->
-  closestHour = getClosestHour timestamp
-  key = makeKey 'uid', uid, 'hour', closestHour
+  closest_hour = getClosestHour timestamp
+  key = makeKey 'uid', uid, 'hour', closest_hour
   client.hgetall key, (err, result) ->
     if err then return cb err
     tmp = (i for i of result)
@@ -133,7 +133,7 @@ app.get '/track/:uid', (req, res) ->
   one_hour = 3600
   one_day = one_hour * 24
   async_cnt = days.length * hours.length
-  closestDay = getClosestDay now
+  closest_day = getClosestDay now
   output = {}
 
   vars = {
@@ -141,7 +141,7 @@ app.get '/track/:uid', (req, res) ->
     uid: uid
     title: 'Code Timing Tool'
     minutes: [0..59]
-    day_names: getDayNames now, days.length
+    day_names: getDayNames closest_day, days.length
     hours: hours
   }
 
@@ -154,7 +154,7 @@ app.get '/track/:uid', (req, res) ->
   for day in days
     for hour in hours
       fn = (which_day, which_hour) ->
-        timestamp = now - (one_hour * which_hour) - (one_day * which_day)
+        timestamp = closest_day - (one_day * which_day) + (one_hour * which_hour)
         getMinutesWorked uid, timestamp, (err, result, total) ->
           if err then return res.send err
           output[which_day][which_hour].total = total
