@@ -14,6 +14,8 @@ client = redis.createClient()
 user_vars = {}
 user_vars.max_lookback_mins = 10
 
+client.select 3
+
 # Utility functions
 # ----------------------------------------------------------------------------
 

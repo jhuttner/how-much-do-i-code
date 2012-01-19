@@ -20,7 +20,7 @@ my $USER = getlogin();
 # Get the timestamp of the last time this source file was modified
 my $SRC_TIMESTAMP = (stat($0))[9];
 
-my $DIR_IGNORE_PATTERN = "\\.svn\\|library";
+my $DIR_IGNORE_PATTERN = "\\.svn\\|library\\|\\.git";
 my @IGNORE_SUFFIXES = ("\.swp", "\.swx", "~");
 my @IGNORE_PREFIXES = ("\.");
 
