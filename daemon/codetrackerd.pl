@@ -5,13 +5,20 @@ use POSIX;
 use Linux::Inotify2;
 
 my $DEBUG = 0;
+my $CAN_RESPAWN = 1;
 
 my $LOGDIR = "/var/log/codetracker";
 my $LOGFILE = $LOGDIR."/codetrackerd.log";
 my $OUTFILE = $LOGDIR."/codetrackerd.out";
 my $ERRFILE = $LOGDIR."/codetrackerd.err";
 my $PIDFILE = $LOGDIR."/codetrackerd.pid";
+
+# Get the currently logged in user - must use this method to get the username since
+# this script must be run as root, yet we do not want the name of the root user
 my $USER = getlogin();
+
+# Get the timestamp of the last time this source file was modified
+my $SRC_TIMESTAMP = (stat($0))[9];
 
 my $DIR_IGNORE_PATTERN = "\\.svn\\|library";
 my @IGNORE_SUFFIXES = ("\.swp", "\.swx", "~");
@@ -19,13 +26,150 @@ my @IGNORE_PREFIXES = ("\.");
 
 ## TODO: handle interrupt signals
 ## TODO: handle configs
-## TODO: restart daemon on file update
 ## TODO: do bookeeping / reconcile watches with existing dirs
+
+sub respawn;
+sub logMsg($);
+sub addWatch($);
+sub handleNotifyEvent($);
+sub handleFileModify($$);
+sub handleDirCreate($$);
+sub handleDirDelete($$);
+
+
+# Gather command line arguments
+my @input_dirs = ();
+foreach my $arg (@ARGV) {
+	if ($arg =~ /^-u(.+)/) {
+		$USER = $1;
+		next;
+	}
+	if (!-e $arg) {
+		print "Directory $arg does not exist - ignoring...\n";
+		next;
+	}
+	push(@input_dirs, $arg);
+}
+if ($#input_dirs < 0) {
+	print "No valid directory paths specified! Exiting...\n";
+	exit;
+}
+
+# A pid file will be created to ensure only one instance of this process is running.
+# If a pid file exists and the pid it contains matches a currently running process,
+# then exit. Otherwise, delete it.
+if (-e $PIDFILE && !$DEBUG) {
+	open(PID, "<$PIDFILE");
+	my $pid = <PID>;
+	chomp($pid);
+	close PID;
+
+	if ($pid) {
+		# Check if the pid matches a currently running process
+		if (kill(0, $pid)) {
+			print "Process already running with PID $pid! Exiting...\n";
+			exit;
+		} else {
+			unlink $PIDFILE;
+		}
+	}	
+}
+
+# Fork a child process, which will remain running as the daemon
+logMsg('Code tracker daemon initializing - forking child process...');
+my $fork_pid = fork;
+if (!defined($fork_pid)) {
+	logMsg("Process failed to fork: $!");
+	die;
+}
+
+# The parent process should exit, after giving the forked process enough time to
+# daemonize. The child process will have a pid of 0.
+if ($fork_pid) {
+	logMsg('Child forked successfully - parent exiting...');
+	sleep(3);
+	exit;
+}
+
+# Daemonize child process by creating a new session and setting it as the session leader
+# http://pubs.opengroup.org/onlinepubs/009604499/functions/setsid.html
+POSIX::setsid;
+
+print "Code tracker daemon initializing...\n";
+
+if (!$DEBUG) {
+	# Create a new file with the current pid
+	logMsg("Creating pid file $PIDFILE");
+	if (open(PID, ">$PIDFILE")) {
+		print PID "$$\n";
+		close PID;
+	} else {
+		print "Cannot open PID file: $PIDFILE. Exiting...\n";
+		exit;
+	}
+}
 
 # Create an Inotify2 object to be notified of file system events
 my $inotify = new Linux::Inotify2 or die "Unable to create new inotify object: $!" ;
+$inotify->blocking(0);
+my %watches = ();
 
-sub logMsg {
+# For each dir passed in on the command line, recursively get all subdirectories
+# and add a watch to each one
+foreach my $arg (@input_dirs) {
+	my @dirsToWatch = `find $arg -type d | grep -v "$DIR_IGNORE_PATTERN"`;
+	foreach my $dir (@dirsToWatch) {
+		chomp($dir);
+		addWatch($dir) unless $DEBUG;
+	}
+}
+
+print "Code tracker daemon running (PID:$$,USER:$USER)\n";
+logMsg("Code tracker daemon running (PID:$$,USER:$USER)");
+
+# Redirect standard in to /dev/null, and standard out and standard error to log files
+logMsg("Redirecting STDOUT and STDERR to $OUTFILE and $ERRFILE");
+open(STDIN, "/dev/null");
+open(STDOUT, ">>$OUTFILE") if !$DEBUG;
+open(STDERR, ">>$ERRFILE") if !$DEBUG;
+
+# Main daemon loop - poll for notify events at regular intervals
+logMsg('Listening for file system events...');
+while (!$DEBUG) {
+	# Poll for events (non-blocking call)
+	$inotify->poll;
+
+	# Respawn this process if the source file is modified
+        my $modified_time = (stat($0))[9];
+	respawn if $modified_time != $SRC_TIMESTAMP;
+
+	sleep(1);
+}
+
+print "Exiting...\n";
+exit;
+
+sub respawn {
+	# If respawning is enabled, clean up by releasing all watches and deleting the
+	# pid file, then re-execute this script with the original command line arguments
+	if ($CAN_RESPAWN) {
+		logMsg("Change detected in source file - cleaning up and respawning process...");
+		foreach my $key (keys %watches) {
+			$watches{$key}->cancel();
+		}
+		unlink $PIDFILE;
+		exec($0, "-u".$USER, @input_dirs);
+	}
+
+	# If the exec() returns and this code is reached, then something went wrong,
+	# so exit
+	if ($CAN_RESPAWN) {
+		logMsg("Respawn failed: $!\nExiting...");
+		exit;
+	}
+}
+
+sub logMsg($) {
 	my $msg = shift;
 	if ($msg) {
 		my $time = `date +'[%F %T]'`;
@@ -43,13 +187,15 @@ sub logMsg {
 	}
 }
 
-sub addWatch {
+sub addWatch($) {
 	my $path = shift;
-	$inotify->watch($path, IN_MODIFY|IN_CREATE|IN_DELETE_SELF, \&handleNotifyEvent);
-	logMsg("Watch added for $path");
+	if (!$watches{$path}) {
+		$watches{$path} = $inotify->watch($path, IN_MODIFY|IN_CREATE|IN_DELETE_SELF, \&handleNotifyEvent);
+		logMsg("Watch added for $path");
+	}
 }
 
-sub handleNotifyEvent {
+sub handleNotifyEvent($) {
 	my $event =  shift;
 	my $path = $event->fullname;
 
@@ -65,7 +211,7 @@ sub handleNotifyEvent {
 	}
 }
 
-sub handleFileModify {
+sub handleFileModify($$) {
 	my $filename = shift;
 
 	# Get the file owner - only handle the modify event if the file is owned
@@ -81,15 +227,16 @@ sub handleFileModify {
 	my $response = `$cmd`;
 }
 
-sub handleDirCreate {
+sub handleDirCreate($$) {
 	my $dirname = shift;
 	addWatch($dirname);
 }
 
-sub handleDirDelete {
+sub handleDirDelete($$) {
 	my $dirname = shift;
 	my $event = shift;
 	$event->w->cancel();
+	delete $watches{$dirname};
 	logMsg("Directory $dirname deleted; watch removed");
 }
 
@@ -109,94 +256,3 @@ sub testNotify {
 	print "$name self deleted\n" if $e->IN_DELETE_SELF;
 	print "$name moved\n" if $e->IN_MOVE_SELF;
 }
-
-logMsg('Code tracker daemon initializing - forking child process...');
-
-# Fork a child process, which will remain running as the daemon
-my $fork_pid = fork;
-if (!defined($fork_pid)) {
-	logMsg("Process failed to fork: $!");
-	die;
-}
-
-# The parent process should exit, after giving the forked process enough time to
-# daemonize. The child process will have a pid of 0.
-if ($fork_pid) {
-	logMsg('Child forked successfully - parent exiting...');
-	sleep(3);
-	exit;
-}
-
-# Daemonize child process by creating a new session and setting it as the session leader
-# http://pubs.opengroup.org/onlinepubs/009604499/functions/setsid.html
-POSIX::setsid;
-
-if (!$DEBUG) {
-	# A pid file will be created to ensure only one instance of this process is running.
-	# If a pid file exists and the pid it contains matches a currently running process,
-	# then exit. Otherwise, delete it.
-	if (-e $PIDFILE) {
-		open(PID, "<$PIDFILE");
-		my $pid = <PID>;
-		chomp($pid);
-		close PID;
-
-		if ($pid) {
-			# Check if the pid matches a currently running process
-			if (kill(0, $pid)) {
-				print "Process already running! (PID:$pid)\n";
-				exit;
-			} else {
-				unlink $PIDFILE;
-			}
-		}	
-	}
-
-	# Create a new file with the current pid
-	logMsg("Creating pid file $PIDFILE");
-	if (open(PID, ">$PIDFILE")) {
-		print PID "$$\n";
-		close PID;
-	} else {
-		print "Cannot open PID file: $PIDFILE\n";
-		exit;
-	}
-}
-
-# Check for command line arguments
-if ($#ARGV < 0) {
-	print "No directory paths specified!\n";
-	exit;
-}
-
-print "Code tracker daemon initializing...\n";
-
-
-# For each dir passed in on the command line, recursively get all subdirectories
-# and add a watch to each one
-foreach my $arg (@ARGV) {
-	my @dirsToWatch = `find $arg -type d | grep -v "$DIR_IGNORE_PATTERN"`;
-	foreach my $dir (@dirsToWatch) {
-		chomp($dir);
-		addWatch($dir) unless $DEBUG;
-	}
-}
-
-print "Code tracker daemon running (PID:$$,USER:$USER)\n";
-
-# Redirect standard in to /dev/null, and standard out and standard error to log files
-logMsg("Redirecting STDOUT and STDERR to $OUTFILE and $ERRFILE");
-open(STDIN, "/dev/null");
-open(STDOUT, ">>$OUTFILE") if !$DEBUG;
-open(STDERR, ">>$ERRFILE") if !$DEBUG;
-
-# Main daemon loop - poll for notify events at regular intervals
-logMsg('Listening for file system events...');
-while (!$DEBUG) {
-	print STDERR "Error processing notify events\n" unless $inotify->poll;
-	sleep(1);
-}
-
-print "Exiting...\n";
-
-exit;
