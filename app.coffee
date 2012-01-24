@@ -29,6 +29,12 @@ getMinute = (timestamp) ->
   which_minute = seconds_past_hour / 60
   Math.floor which_minute
 
+getHour = (timestamp) ->
+  # returns int between 0->23
+  seconds_past_day =  timestamp % 86400
+  which_hour = seconds_past_day / 3600
+  Math.floor which_hour
+
 getClosestMinute = (timestamp) ->
   # returns the timestamp of the most recent minute
   60 * Math.floor (timestamp / 60)
@@ -136,6 +142,9 @@ app.get '/track/:uid', (req, res) ->
   one_day = one_hour * 24
   async_cnt = days.length * hours.length
   closest_day = getClosestDay now
+  num_hour = getHour now
+  timezone_offset = 5 # America/New_York
+  show_day_zero = num_hour - timezone_offset >= 0
   output = {}
 
   vars = {
@@ -153,17 +162,40 @@ app.get '/track/:uid', (req, res) ->
     for hour in hours
       output[day][hour] = {}
 
-  for day in days
+  for day, index in days
+    if index is days.slice(-1)
+      continue
     for hour in hours
       fn = (which_day, which_hour) ->
+
+        # 18 UTC -> 13 EST
+        # 3 UTC -> 22 EST one day later
+        if which_hour - timezone_offset >= 0
+          which_hour_after_offset = which_hour - timezone_offset
+          which_day_after_offset = which_day
+        else
+          which_hour_after_offset = which_hour - timezone_offset + 24
+          which_day_after_offset = which_day + 1
+
         timestamp = closest_day - (one_day * which_day) + (one_hour * which_hour)
         getMinutesWorked uid, timestamp, (err, result, total) ->
           if err then return res.send err
-          output[which_day][which_hour].total = total
-          output[which_day][which_hour].minutes = result
-          output[which_day].total += total
+
+          if which_day_after_offset isnt days.slice(-1)[0] + 1
+            output[which_day_after_offset][which_hour_after_offset].total = total
+            output[which_day_after_offset][which_hour_after_offset].minutes = result
+            output[which_day_after_offset].total += total
+
           async_cnt -= 1
           if async_cnt is 0
+            if not show_day_zero
+
+              # Shift everything back one day
+              for key, value of output
+                output[key - 1] = value
+
+              delete output[-1]
+
             vars.result = output
             res.render 'index.jade', vars
             return

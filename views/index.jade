@@ -1,12 +1,19 @@
-h1 Time spent coding by #{uid}
+h2(style="margin-top: -2em; padding:0") #{uid} coding timesheet - EST
 
-h2 Want this? 
-  a(href="http://github.com/jhuttner/how-much-do-i-code") Instructions here
+a(href="http://github.com/jhuttner/how-much-do-i-code")
+  img(style="position: absolute; top: 0; right: 0; border: 0;", src="https://a248.e.akamai.net/assets.github.com/img/e6bef7a091f5f3138b8cd40bc3e114258dd68ddf/687474703a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f7265645f6161303030302e706e67", alt="Fork me on GitHub")
 
-p(style="line-height:30px; width: 100px; background-color: blue; color:white; text-align:center") Coding
-p(style="line-height:30px; width: 100px; background-color: #d8d8d8; text-align:center") Not Coding
-p | midnight ------- 23:59 UTC |
-hr
+//p(style="line-height:30px; width: 100px; background-color: blue; color:white; text-align:center") Coding
+//p(style="line-height:30px; width: 100px; background-color: #d8d8d8; text-align:center") Not Coding
+
+div
+  each hour in hours
+    each minute in minutes
+      - if (minute === 0 && hour % 3 === 0 && hour !== 0)
+        div(style="float:left; background-color: #d8d8d8; z-index: 10; position: relative; width: 1px; color:") #{(hour > 12) ? hour - 12 + 'pm' : (hour === 12) ? 'Noon' : hour + 'am'}
+      - else
+        div(style="float:left; background-color: #d8d8d8;width: 1px;") &nbsp;
+  p(style="color: white; padding-bottom: 2em") .
 
 each day, d in result
   - if (d == 0)
@@ -16,10 +23,11 @@ each day, d in result
   - else
     p= d + ' days ago, ' + day.total + ' minutes'
 
-  each hour in hours
-    each minute in minutes
-      - if (day[hour]['minutes'][minute])
-        //span Minute is #{minute} and hour is #{hour}
-        span(style="display: inline-block; height:20px; width: 1px; background-color: blue;")
-      - else
-        span(style="display: inline-block; height:20px; width: 1px; background-color: #d8d8d8;")
+  div
+    each hour in hours
+      each minute in minutes
+        - if (day[hour]['minutes'] && day[hour]['minutes'][minute])
+          div(style="float:left; background-color: blue; width: 1px;")  &nbsp;
+        - else
+          div(style="float:left; background-color: #d8d8d8;width: 1px;") &nbsp;
+  p(style="color: white") .
