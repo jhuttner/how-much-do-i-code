@@ -9,25 +9,29 @@ a(href="http://github.com/jhuttner/how-much-do-i-code")
 div
   each hour in hours
     each minute in minutes
-      - if (minute === 0 && hour % 3 === 0 && hour !== 0)
-        div(style="float:left; background-color: #d8d8d8; z-index: 10; position: relative; width: 1px; color:") #{(hour > 12) ? hour - 12 + 'pm' : (hour === 12) ? 'Noon' : hour + 'am'}
+      - if (minute === 0)
+        div(style="float:left; background-color: #d8d8d8; z-index: 10; position: relative; width: 1px; color:") #{(hour > 12) ? hour - 12 + 'pm' : (hour === 12) ? 'Noon' : (hour === 0) ? '12m' : hour + 'am'}
       - else
         div(style="float:left; background-color: #d8d8d8;width: 1px;") &nbsp;
   p(style="color: white; padding-bottom: 2em") .
 
 each day, d in result
-  - if (d == 0)
-    p= 'Today, ' + day.total + ' minutes'
-  - else if (d == 1)
-    p= 'Yesterday, ' + day.total + ' minutes'
-  - else
-    p= d + ' days ago, ' + day.total + ' minutes'
+  //- if (d == 0)
+    //p= 'Today, ' + day.total + ' minutes'
+  //- else if (d == 1)
+    //p= 'Yesterday, ' + day.total + ' minutes'
+  //- else
+    //p= d + ' days ago, ' + day.total + ' minutes'
 
-  div
+  div(style="margin:0; padding: 0")
     each hour in hours
       each minute in minutes
         - if (day[hour]['minutes'] && day[hour]['minutes'][minute])
-          div(style="float:left; background-color: blue; width: 1px;")  &nbsp;
+          div(style="float:left; background-color: blue; width: 1px; height: 20px;")  &nbsp;
         - else
-          div(style="float:left; background-color: #d8d8d8;width: 1px;") &nbsp;
-  p(style="color: white") .
+          div(style="float:left; background-color: #d8d8d8;width: 1px; height: 20px;") &nbsp;
+  p(style="color: black") &nbsp; #{day.total}
+
+p Cumulative Total: #{cumulative_total} minutes
+p Percentage: #{ 1/100 * Math.round(10000 * (cumulative_total / (num_days * 1440)))}%
+//p Percentage 9 hour workday: #{ 1/100 * Math.round(10000 * (cumulative_total / (num_days * (1440 * (9/24)))))}%

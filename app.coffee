@@ -146,6 +146,7 @@ app.get '/track/:uid', (req, res) ->
   timezone_offset = 5 # America/New_York
   show_day_zero = num_hour - timezone_offset >= 0
   output = {}
+  cumulative_total = 0
 
   vars = {
     result: {}
@@ -185,6 +186,7 @@ app.get '/track/:uid', (req, res) ->
             output[which_day_after_offset][which_hour_after_offset].total = total
             output[which_day_after_offset][which_hour_after_offset].minutes = result
             output[which_day_after_offset].total += total
+            cumulative_total += total
 
           async_cnt -= 1
           if async_cnt is 0
@@ -197,6 +199,8 @@ app.get '/track/:uid', (req, res) ->
               delete output[-1]
 
             vars.result = output
+            vars.cumulative_total = cumulative_total
+            vars.num_days = days.length
             res.render 'index.jade', vars
             return
       fn day, hour
