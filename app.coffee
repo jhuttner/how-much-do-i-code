@@ -7,6 +7,7 @@ app.set 'views', __dirname + '/views'
 app.use(express.static(__dirname + '/public'))
 redis = require 'redis'
 client = redis.createClient()
+_ = require 'underscore'
 
 # User-defined variables
 # ----------------------------------------------------------------------------
@@ -133,10 +134,10 @@ getDayName = (timestamp) ->
 # Web Hooks
 # ----------------------------------------------------------------------------
 
-app.get '/track/:uid', (req, res) ->
+app.get '/track/:uid/:days?', (req, res) ->
   uid = req.params.uid
   now = (new Date()).getTime() / 1000
-  days = [0..10]
+  days = [0..req.params.days or 10]
   hours = [0..23]
   one_hour = 3600
   one_day = one_hour * 24
@@ -191,12 +192,14 @@ app.get '/track/:uid', (req, res) ->
           async_cnt -= 1
           if async_cnt is 0
             if not show_day_zero
+              console.log 'not showing day zero'
 
               # Shift everything back one day
               for key, value of output
                 output[key - 1] = value
 
               delete output[-1]
+              delete output[_.keys(output).length - 1]
 
             vars.result = output
             vars.cumulative_total = cumulative_total
